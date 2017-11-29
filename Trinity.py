@@ -4,6 +4,7 @@ Created on Tue Nov 28 08:41:27 2017
 
 @author: Chengyang
 """
+from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Blast.Applications import NcbiblastpCommandline, NcbiblastnCommandline
 from Bio.Blast import NCBIXML
@@ -62,7 +63,7 @@ class Trinity(object):
         self.sites = []
         self.level = None
         self.use_blast = False
-        self.type = None
+        self.type = 'aa'
         
     def set_similarity(self, threshold):
         assert 0 <= threshold <= 1
@@ -81,9 +82,8 @@ class Trinity(object):
     def set_blast(self):
         self.use_blast = True
         
-    def set_type(self, tp):
-        assert tp == 'aa' or tp == 'dna'
-        self.type = tp
+    def set_to_dna(self):
+        self.type = 'dna'
         
     def check_num(self):
         n_seq = self.seqs.__len__()
@@ -172,7 +172,8 @@ class Trinity(object):
         prvs_clustering = clstr_prvs.values()
         for cluster in clstr_tmp.values():
             if cluster not in prvs_clustering:
-                similar = self.__similarity_by_msa(cluster)
+                calc_fun = self.__how_calc()
+                similar = calc_fun(cluster)
                 site_consrv = self.__site_conservation(cluster)
                 if not all(similar) or not all(site_consrv):
                     for trichord in cluster:
@@ -181,6 +182,12 @@ class Trinity(object):
                 for trichord in cluster:
                     trichord.backwards()
         return trichords, clstr_tmp
+        
+    def __how_calc(self):
+        if self.use_blast == False:
+            return self.__similarity_by_msa
+        else:
+            return self.__similarity_by_blast
         
     def __similarity_by_msa(self, cluster):
         similar = []
@@ -238,15 +245,14 @@ class Trinity(object):
                     sbjct_file = directory + "subject"
                     SeqIO.write(sbjct_seq, sbjct_file, "fasta")
                     if self.type == 'aa':
-                        blastp_cline = NcbiblastpCommandline(query=qry_file,
+                        blast_cline = NcbiblastpCommandline(query=qry_file,
                                                              subject=sbjct_file,
                                                              outfmt=5)
-                        stdout, stderr = blastp_cline()
                     elif self.type == 'dna':
-                        blastn_cline = NcbiblastnCommandline(query=qry_file,
+                        blast_cline = NcbiblastnCommandline(query=qry_file,
                                                              subject=sbjct_file,
                                                              outfmt=5)
-                        stdout, stderr = blastn_cline()
+                    stdout, stderr = blast_cline()
                     blast_records = NCBIXML.parse(StringIO(stdout))
                     for blast_record in blast_records:
                         for alignment in blast_record.alignments:
@@ -258,7 +264,7 @@ class Trinity(object):
             return similar
 #%%
 if __name__ == '__main__':
-    from Bio import Phylo, SeqIO, AlignIO
+    from Bio import Phylo, AlignIO
     seqs = SeqIO.index("./dummy/test.fasta", 'fasta')
     aligns = AlignIO.read("./dummy/test.aln", 'clustal')
     tree = Phylo.read("./dummy/test.dnd", 'newick')

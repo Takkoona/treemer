@@ -9,7 +9,6 @@ from Bio import Phylo, SeqIO, AlignIO
 from Trinity import Trinity
 import argparse
 #%%
-
 parser = argparse.ArgumentParser(description="Trim seq by tree.")
 parser.add_argument('seqFile', type=str,
                     help='Sequence file in fasta format')
@@ -34,6 +33,7 @@ x = Trinity(seqs, aligns, tree)
 x.set_similarity(0.9)
 #x.set_level(3)
 x.set_blast()
+x.set_to_dna()
 
 clstr = x.trim_by_tree()
 
