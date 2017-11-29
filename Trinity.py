@@ -4,8 +4,13 @@ Created on Tue Nov 28 08:41:27 2017
 
 @author: Chengyang
 """
+from Bio.SeqRecord import SeqRecord
+from Bio.Blast.Applications import NcbiblastpCommandline, NcbiblastnCommandline
+from Bio.Blast import NCBIXML
+from StringIO import StringIO
 from collections import defaultdict
 import numpy as np
+import os
 #%%
 class Trichord(object):
     
@@ -57,6 +62,7 @@ class Trinity(object):
         self.sites = []
         self.level = None
         self.use_blast = False
+        self.type = None
         
     def set_similarity(self, threshold):
         assert 0 <= threshold <= 1
@@ -67,6 +73,17 @@ class Trinity(object):
         for site in sites:
             assert isinstance(site, int)
         self.sites = sites
+    
+    def set_level(self, level):
+        assert isinstance(level, int) and level > 0
+        self.level = level
+    
+    def set_blast(self):
+        self.use_blast = True
+        
+    def set_type(self, tp):
+        assert tp == 'aa' or tp == 'dna'
+        self.type = tp
         
     def check_num(self):
         n_seq = self.seqs.__len__()
@@ -194,6 +211,51 @@ class Trinity(object):
             concord = all(x == a_sites[0] for x in a_sites)
             consrv.append(concord)
         return consrv
+        
+    def __similarity_by_blast(self, cluster):
+        directory = "./.Treemer_tmp/"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        similar = []
+        for trichord in cluster:
+            qry_record = trichord.s_record
+            qry_id = qry_record.id
+            qry_seq = SeqRecord(qry_record.seq,
+                                  id=qry_id)
+            qry_file = directory + "query"
+            SeqIO.write(qry_seq, qry_file, "fasta")
+            for trichord in cluster:
+                sbjct_record = trichord.s_record
+                sbjct_id = sbjct_record.id
+                pairing = tuple(set([qry_id, sbjct_id]))
+                sbjct_seqs = []
+                if pairing in self.aligned:
+                    p_match = self.aligned[pairing]
+                else:
+                    sbjct_seq = SeqRecord(sbjct_record.seq,
+                                          id=sbjct_id)
+                    sbjct_seqs.append(sbjct_seq)
+                    sbjct_file = directory + "subject"
+                    SeqIO.write(sbjct_seq, sbjct_file, "fasta")
+                    if self.type == 'aa':
+                        blastp_cline = NcbiblastpCommandline(query=qry_file,
+                                                             subject=sbjct_file,
+                                                             outfmt=5)
+                        stdout, stderr = blastp_cline()
+                    elif self.type == 'dna':
+                        blastn_cline = NcbiblastnCommandline(query=qry_file,
+                                                             subject=sbjct_file,
+                                                             outfmt=5)
+                        stdout, stderr = blastn_cline()
+                    blast_records = NCBIXML.parse(StringIO(stdout))
+                    for blast_record in blast_records:
+                        for alignment in blast_record.alignments:
+                            length = float(alignment.length)
+                            for hsp in alignment.hsps:
+                                p_match = hsp.identities/length
+                                self.aligned[pairing] = p_match
+                    similar.append(p_match > self.similarity)
+            return similar
 #%%
 if __name__ == '__main__':
     from Bio import Phylo, SeqIO, AlignIO

@@ -31,6 +31,10 @@ tree = Phylo.read(tree_file, 'newick')
 
 x = Trinity(seqs, aligns, tree)
 
+x.set_similarity(0.9)
+#x.set_level(3)
+x.set_blast()
+
 clstr = x.trim_by_tree()
 
 for cluster in clstr:
