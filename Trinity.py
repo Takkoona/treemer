@@ -12,7 +12,7 @@ from StringIO import StringIO
 from collections import defaultdict
 import numpy as np
 import os
-#%%
+
 class Trichord(object):
     
     def __init__(self, s_record, a_record, t_path):
@@ -62,8 +62,7 @@ class Trinity(object):
         self.similarity = 0.9
         self.sites = []
         self.level = None
-        self.use_blast = False
-        self.type = 'aa'
+        self.calc_fun = self.__similarity_by_msa
         
     def set_similarity(self, threshold):
         assert 0 <= threshold <= 1
@@ -78,12 +77,17 @@ class Trinity(object):
     def set_level(self, level):
         assert isinstance(level, int) and level > 0
         self.level = level
-    
-    def set_blast(self):
-        self.use_blast = True
         
-    def set_to_dna(self):
-        self.type = 'dna'
+    def use_msa(self):
+        self.calc_fun = self.__similarity_by_msa
+    
+    def use_blastp(self):
+        self.blast = NcbiblastpCommandline
+        self.calc_fun = self.__similarity_by_blast
+        
+    def use_blastn(self):
+        self.blast = NcbiblastnCommandline
+        self.calc_fun = self.__similarity_by_blast
         
     def check_num(self):
         n_seq = self.seqs.__len__()
@@ -125,26 +129,17 @@ class Trinity(object):
             clade = trichord.clade
             old_clstr[clade].add(trichord)
         stage = 0
-        if self.level is None:
-            while True:
-                stage += 1
-                print 'Doing level', stage, 'reduction'
-                clstr_prvs = old_clstr
-                trichords, old_clstr = self.__clustering(trichords, clstr_prvs)
-                if old_clstr.values() == clstr_prvs.values():
-                    break
-        else:
-            assert self.level > 0
-            level = self.level
-            stable = False
-            while not stable and level > 0:
-                stage += 1
+        assert self.level > 0 or self.level is None
+        level = self.level
+        while True and level > 0 or self.level is None:
+            stage += 1
+            if level is not None:
                 level -= 1
-                print 'Doing level', stage, 'reduction'
-                clstr_prvs = old_clstr
-                trichords, old_clstr = self.__clustering(trichords, clstr_prvs)
-                if old_clstr.values() == clstr_prvs.values():
-                    break
+            print 'Doing level', stage, 'reduction'
+            clstr_prvs = old_clstr
+            trichords, old_clstr = self.__clustering(trichords, clstr_prvs)
+            if old_clstr.values() == clstr_prvs.values():
+                break
         final_clstr = defaultdict(set)
         for trichord in trichords:
             clade = trichord.clade
@@ -172,8 +167,7 @@ class Trinity(object):
         prvs_clustering = clstr_prvs.values()
         for cluster in clstr_tmp.values():
             if cluster not in prvs_clustering:
-                calc_fun = self.__how_calc()
-                similar = calc_fun(cluster)
+                similar = self.calc_fun(cluster)
                 site_consrv = self.__site_conservation(cluster)
                 if not all(similar) or not all(site_consrv):
                     for trichord in cluster:
@@ -183,11 +177,13 @@ class Trinity(object):
                     trichord.backwards()
         return trichords, clstr_tmp
         
-    def __how_calc(self):
-        if self.use_blast == False:
-            return self.__similarity_by_msa
-        else:
-            return self.__similarity_by_blast
+    def __site_conservation(self, cluster):
+        consrv = []
+        for site in self.sites:
+            a_sites = [trichord.a_record[site - 1] for trichord in cluster]
+            concord = all(x == a_sites[0] for x in a_sites)
+            consrv.append(concord)
+        return consrv
         
     def __similarity_by_msa(self, cluster):
         similar = []
@@ -211,14 +207,6 @@ class Trinity(object):
                 similar.append(p_match > self.similarity)
         return similar
         
-    def __site_conservation(self, cluster):
-        consrv = []
-        for site in self.sites:
-            a_sites = [trichord.a_record[site - 1] for trichord in cluster]
-            concord = all(x == a_sites[0] for x in a_sites)
-            consrv.append(concord)
-        return consrv
-        
     def __similarity_by_blast(self, cluster):
         directory = "./.Treemer_tmp/"
         if not os.path.exists(directory):
@@ -227,8 +215,7 @@ class Trinity(object):
         for trichord in cluster:
             qry_record = trichord.s_record
             qry_id = qry_record.id
-            qry_seq = SeqRecord(qry_record.seq,
-                                  id=qry_id)
+            qry_seq = SeqRecord(qry_record.seq, id=qry_id)
             qry_file = directory + "query"
             SeqIO.write(qry_seq, qry_file, "fasta")
             for trichord in cluster:
@@ -239,19 +226,13 @@ class Trinity(object):
                 if pairing in self.aligned:
                     p_match = self.aligned[pairing]
                 else:
-                    sbjct_seq = SeqRecord(sbjct_record.seq,
-                                          id=sbjct_id)
+                    sbjct_seq = SeqRecord(sbjct_record.seq,id=sbjct_id)
                     sbjct_seqs.append(sbjct_seq)
                     sbjct_file = directory + "subject"
                     SeqIO.write(sbjct_seq, sbjct_file, "fasta")
-                    if self.type == 'aa':
-                        blast_cline = NcbiblastpCommandline(query=qry_file,
-                                                             subject=sbjct_file,
-                                                             outfmt=5)
-                    elif self.type == 'dna':
-                        blast_cline = NcbiblastnCommandline(query=qry_file,
-                                                             subject=sbjct_file,
-                                                             outfmt=5)
+                    blast_cline = self.blast(query=qry_file,
+                                             subject=sbjct_file,
+                                             outfmt=5)
                     stdout, stderr = blast_cline()
                     blast_records = NCBIXML.parse(StringIO(stdout))
                     for blast_record in blast_records:
@@ -262,7 +243,7 @@ class Trinity(object):
                                 self.aligned[pairing] = p_match
                     similar.append(p_match > self.similarity)
             return similar
-#%%
+
 if __name__ == '__main__':
     from Bio import Phylo, AlignIO
     seqs = SeqIO.index("./dummy/test.fasta", 'fasta')
@@ -271,10 +252,3 @@ if __name__ == '__main__':
     
     trinity = Trinity(seqs, aligns, tree)
     clstr = trinity.trim_by_tree()
-    for cluster in clstr:
-        for trichord in cluster:
-            if trichord.prsrv:
-                print str(trichord) + '*'
-            else:
-                print trichord
-        print ''
