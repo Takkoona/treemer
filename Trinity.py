@@ -23,24 +23,23 @@ class Trichord(object):
         self.prsrv = False
         
     def __str__(self):
-        return  self.s_id
+        s_id = self.s_record.id
+        if self.prsrv is False:
+            return  s_id
+        else:
+            return '{}*'.format(s_id)
     
     def proceed(self):
         pro_pos = self._path_pos - 1
         if len(self.t_path) >= abs(pro_pos):
             self._path_pos = pro_pos
     
-    def backwards(self):
-        back_pos = self._path_pos + 1
-        if back_pos <= -1:
-            self._path_pos = back_pos
-    
     def set_prsrv(self):
         self.prsrv = True
-#        self.s_id = '{}*'.format(self.s_id)
     
+    @property
     def next_clade(self):
-        pro_pos = self.__path_pos - 1
+        pro_pos = self._path_pos - 1
         if len(self.t_path) >= abs(pro_pos):
             return self.t_path[pro_pos]
         else:
@@ -49,10 +48,6 @@ class Trichord(object):
     @property
     def clade(self):
         return self.t_path[self._path_pos]
-    
-    @property
-    def s_id(self):
-        return self.s_record.id
     
     @classmethod
     def from_list(cls, assembly):
@@ -67,7 +62,7 @@ class Trinity(object):
         self.aligns = aligns
         self.tree = tree
         self.aligned = {}
-        self.similarity = 0.9
+        self.similarity = 0.95
         self.sites = []
         self.level = None
         self.calc_fun = self.__similarity_by_msa
@@ -76,14 +71,16 @@ class Trinity(object):
         assert 0 <= threshold <= 1
         self.similarity = threshold
         
-    def set_sites(self, sites):
-        assert isinstance(sites, list)
-        for site in sites:
-            assert isinstance(site, int)
-        self.sites = sites
+    def set_sites(self, *args):
+        if args:
+            for site in args:
+                assert isinstance(args, int)
+                self.sites.append(site)
+        else:
+            self.sites = []
     
     def set_level(self, level):
-        assert isinstance(level, int) and level > 0
+        assert level is None or isinstance(level, int) and level > 0
         self.level = level
         
     def use_msa(self):
@@ -126,7 +123,7 @@ class Trinity(object):
                 if a_id.startswith(t_id):
                     t_path = self.tree.get_path(tip)
                     assert t_path is not None, \
-                    "Alignment {} not found in tree".format(a_id)
+                    "Tip {} not found in tree".format(a_id)
                     if isinstance(t_path, list):
                         t_path = tuple([self.tree.root] + t_path)
                     else:
@@ -138,14 +135,10 @@ class Trinity(object):
         for trichord in trichords:
             clade = trichord.clade
             old_clstr[clade].add(trichord)
-        stage = 0
-        assert self.level > 0 or self.level is None
         level = self.level
         while level > 0 or self.level is None:
-            stage += 1
             if level is not None:
                 level -= 1
-            print 'Doing level {} reduction'.format(stage)
             clstr_prvs = old_clstr
             trichords, old_clstr = self.__clustering(trichords, clstr_prvs)
             if old_clstr.values() == clstr_prvs.values():
@@ -171,20 +164,16 @@ class Trinity(object):
     def __clustering(self, trichords, clstr_prvs):
         clstr_tmp = defaultdict(set)
         for trichord in trichords:
-            trichord.proceed()
-            clade = trichord.clade
+            clade = trichord.next_clade
             clstr_tmp[clade].add(trichord)
         prvs_clustering = clstr_prvs.values()
         for cluster in clstr_tmp.values():
             if cluster not in prvs_clustering:
                 similar = self.calc_fun(cluster)
                 site_consrv = self.__site_conservation(cluster)
-                if not all(similar) or not all(site_consrv):
+                if all(similar + site_consrv):
                     for trichord in cluster:
-                        trichord.backwards()
-            else:
-                for trichord in cluster:
-                    trichord.backwards()
+                        trichord.proceed()
         return trichords, clstr_tmp
         
     def __site_conservation(self, cluster):
