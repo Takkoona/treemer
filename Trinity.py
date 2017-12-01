@@ -23,7 +23,7 @@ class Trichord(object):
         self.prsrv = False
         
     def __str__(self):
-        return  str(self.s_id)
+        return  self.s_id
     
     def proceed(self):
         pro_pos = self._path_pos - 1
@@ -37,6 +37,14 @@ class Trichord(object):
     
     def set_prsrv(self):
         self.prsrv = True
+#        self.s_id = '{}*'.format(self.s_id)
+    
+    def next_clade(self):
+        pro_pos = self.__path_pos - 1
+        if len(self.t_path) >= abs(pro_pos):
+            return self.t_path[pro_pos]
+        else:
+            return self.clade
         
     @property
     def clade(self):
@@ -110,13 +118,15 @@ class Trinity(object):
             for s_id in self.seqs:
                 if s_id.startswith(a_id):
                     s_record = self.seqs[s_id]
-                    assert s_record is not None
+                    assert s_record is not None, \
+                    "Alignment {} not found in sequence".format(a_id)
                     assembly[0] = s_record
             for tip in tips:
                 t_id = tip.name
                 if a_id.startswith(t_id):
                     t_path = self.tree.get_path(tip)
-                    assert t_path is not None
+                    assert t_path is not None, \
+                    "Alignment {} not found in tree".format(a_id)
                     if isinstance(t_path, list):
                         t_path = tuple([self.tree.root] + t_path)
                     else:
@@ -131,11 +141,11 @@ class Trinity(object):
         stage = 0
         assert self.level > 0 or self.level is None
         level = self.level
-        while True and level > 0 or self.level is None:
+        while level > 0 or self.level is None:
             stage += 1
             if level is not None:
                 level -= 1
-            print 'Doing level', stage, 'reduction'
+            print 'Doing level {} reduction'.format(stage)
             clstr_prvs = old_clstr
             trichords, old_clstr = self.__clustering(trichords, clstr_prvs)
             if old_clstr.values() == clstr_prvs.values():
