@@ -74,15 +74,15 @@ def cluster_out():
     out = ''
     n_clstr = 1
     for cluster in clstr:
-        out += 'cluster {}\n'.format(n_clstr)
+        out += '>cluster {}\n'.format(n_clstr)
         n_clstr += 1
         for trichord in cluster:
-            out += '{}\n'.format(trichord)
+            out += '\t{}\n'.format(trichord)
         out += '\n'
     return out
 
 if clstr_file is False:
-    print '\n', cluster_out()
+    print cluster_out()
 else:
     out_file = seq_file + '.clstr'
     with open(out_file, 'w') as f:

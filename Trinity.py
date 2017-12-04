@@ -11,7 +11,7 @@ from Bio.Blast import NCBIXML
 from StringIO import StringIO
 from collections import defaultdict
 import numpy as np
-import os
+import os, copy
 
 class Trichord(object):
     
@@ -48,6 +48,10 @@ class Trichord(object):
     @property
     def clade(self):
         return self.t_path[self._path_pos]
+        
+    @property
+    def tip(self):
+        return self.t_path[-1]
     
     @classmethod
     def from_list(cls, assembly):
@@ -61,19 +65,20 @@ class Trinity(object):
         self.seqs = seqs
         self.aligns = aligns
         self.tree = tree
+        assert len(self)
         
-    def check_num(self):
+    def __len__(self):
         n_seq = self.seqs.__len__()
         n_align = self.aligns.__len__()
         n_tips = self.tree.count_terminals()
         assert n_seq == n_align, \
-        "Different number of records in sequence and alignment"
+        "Different record number: {} in sequence and {} alignment".format(n_seq, n_align)
         assert n_align == n_tips, \
-        "Different number of records in alignment and tree"
+        "Different record/tip number: {} in alignment and {} tree".format(n_align, n_tips)
         return n_seq
         
     def get_trichords(self):
-        n_seq = self.check_num()
+        n_seq = len(self)
         tips = self.tree.get_terminals()
         for a_index in range(n_seq):
             a_record = self.aligns[a_index]
@@ -109,10 +114,20 @@ class TraversePaths(object):
         self.level = None
         self.calc_fun = self.__similarity_by_msa
         
-    def set_similarity(self, threshold):
+    def set_similarity(self, threshold, method = 'msa'):
         assert 0 <= threshold <= 1
         self.similarity = threshold
-        
+        if method is 'msa':
+            self.calc_fun = self.__similarity_by_msa
+        elif method is 'blastp':
+            self.blast = NcbiblastpCommandline
+            self.calc_fun = self.__similarity_by_blast
+        elif method is 'blastn':
+            self.blast = NcbiblastnCommandline
+            self.calc_fun = self.__similarity_by_blast
+        else:
+            Exception("")
+            
     def set_sites(self, *args):
         if args:
             for site in args:
@@ -121,20 +136,9 @@ class TraversePaths(object):
         else:
             self.sites = []
     
-    def set_level(self, level):
+    def set_level(self, level = None):
         assert level is None or isinstance(level, int) and level > 0
         self.level = level
-        
-    def use_msa(self):
-        self.calc_fun = self.__similarity_by_msa
-    
-    def use_blastp(self):
-        self.blast = NcbiblastpCommandline
-        self.calc_fun = self.__similarity_by_blast
-        
-    def use_blastn(self):
-        self.blast = NcbiblastnCommandline
-        self.calc_fun = self.__similarity_by_blast
 
     def trim_by_tree(self):
         trichords = []
@@ -172,6 +176,14 @@ class TraversePaths(object):
                     prsrv_record = trichord
             prsrv_record.set_prsrv()
             yield cluster
+            
+    def new_tree_out(self):
+        tree = copy.deepcopy(self.trinity.tree)
+        for cluster in self.trim_by_tree():
+            for trichord in cluster:
+                tip = trichord.tip
+                tree.collapse(tip)
+        return tree
         
     def __clustering(self, trichords, clstr_prvs):
         clstr_tmp = defaultdict(set)
@@ -254,12 +266,3 @@ class TraversePaths(object):
                                 self.aligned[pairing] = p_match
                     similar.append(p_match > self.similarity)
             return similar
-
-if __name__ == '__main__':
-    from Bio import Phylo, AlignIO
-    seqs = SeqIO.index("./dummy/test.fasta", 'fasta')
-    aligns = AlignIO.read("./dummy/test.aln", 'clustal')
-    tree = Phylo.read("./dummy/test.dnd", 'newick')
-    
-    trinity = Trinity(seqs, aligns, tree)
-    clstr = trinity.trim_by_tree()
