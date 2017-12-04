@@ -61,6 +61,48 @@ class Trinity(object):
         self.seqs = seqs
         self.aligns = aligns
         self.tree = tree
+        
+    def check_num(self):
+        n_seq = self.seqs.__len__()
+        n_align = self.aligns.__len__()
+        n_tips = self.tree.count_terminals()
+        assert n_seq == n_align, \
+        "Different number of records in sequence and alignment"
+        assert n_align == n_tips, \
+        "Different number of records in alignment and tree"
+        return n_seq
+        
+    def get_trichords(self):
+        n_seq = self.check_num()
+        tips = self.tree.get_terminals()
+        for a_index in range(n_seq):
+            a_record = self.aligns[a_index]
+            a_id = a_record.id
+            assembly = [None, a_record, None]
+            for s_id in self.seqs:
+                if s_id.startswith(a_id):
+                    s_record = self.seqs[s_id]
+                    assert s_record is not None, \
+                    "Alignment {} not found in sequence".format(a_id)
+                    assembly[0] = s_record
+            for tip in tips:
+                t_id = tip.name
+                if a_id.startswith(t_id):
+                    t_path = self.tree.get_path(tip)
+                    assert t_path is not None, \
+                    "Tip {} not found in tree".format(a_id)
+                    if isinstance(t_path, list):
+                        t_path = tuple([self.tree.root] + t_path)
+                    else:
+                        t_path = tuple([self.tree.root, t_path])
+                    assembly[2] = t_path
+            trichord = Trichord.from_list(assembly)
+            yield trichord
+        
+class TraversePaths(object):
+        
+    def __init__(self, trinity):
+        self.trinity = trinity
         self.aligned = {}
         self.similarity = 0.95
         self.sites = []
@@ -93,55 +135,25 @@ class Trinity(object):
     def use_blastn(self):
         self.blast = NcbiblastnCommandline
         self.calc_fun = self.__similarity_by_blast
-        
-    def check_num(self):
-        n_seq = self.seqs.__len__()
-        n_align = self.aligns.__len__()
-        n_tips = self.tree.count_terminals()
-        assert n_seq == n_align, \
-        "Different number of records in sequence and alignment"
-        assert n_align == n_tips, \
-        "Different number of records in alignment and tree"
-        return n_seq
-        
+
     def trim_by_tree(self):
-        n_seq = self.check_num()
-        tips = self.tree.get_terminals()
         trichords = []
-        for a_index in range(n_seq):
-            a_record = self.aligns[a_index]
-            a_id = a_record.id
-            assembly = [None, a_record, None]
-            for s_id in self.seqs:
-                if s_id.startswith(a_id):
-                    s_record = self.seqs[s_id]
-                    assert s_record is not None, \
-                    "Alignment {} not found in sequence".format(a_id)
-                    assembly[0] = s_record
-            for tip in tips:
-                t_id = tip.name
-                if a_id.startswith(t_id):
-                    t_path = self.tree.get_path(tip)
-                    assert t_path is not None, \
-                    "Tip {} not found in tree".format(a_id)
-                    if isinstance(t_path, list):
-                        t_path = tuple([self.tree.root] + t_path)
-                    else:
-                        t_path = tuple([self.tree.root, t_path])
-                    assembly[2] = t_path
-            trichord = Trichord.from_list(assembly)
-            trichords.append(trichord)
         old_clstr = defaultdict(set)
-        for trichord in trichords:
+        for trichord in self.trinity.get_trichords():
             clade = trichord.clade
             old_clstr[clade].add(trichord)
+            trichords.append(trichord)
         level = self.level
+        stage = 0
         while level > 0 or self.level is None:
             if level is not None:
                 level -= 1
+            stage += 1
+            print "Doing level {} reduction".format(stage)
             clstr_prvs = old_clstr
             trichords, old_clstr = self.__clustering(trichords, clstr_prvs)
             if old_clstr.values() == clstr_prvs.values():
+                print "Level {} reduction is the same as level {}\n".format(stage, stage - 1)
                 break
         final_clstr = defaultdict(set)
         for trichord in trichords:
@@ -151,7 +163,7 @@ class Trinity(object):
             shortest = None
             for trichord in cluster:
                 tip = trichord.t_path[-1]
-                dist = self.tree.distance(tip)
+                dist = self.trinity.tree.distance(tip)
                 if shortest is None:
                     shortest = dist
                     prsrv_record = trichord

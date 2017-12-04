@@ -6,7 +6,7 @@ Created on Wed Nov 29 08:51:59 2017
 """
 
 from Bio import Phylo, SeqIO, AlignIO
-from Trinity import Trinity
+from Trinity import Trinity, TraversePaths
 import argparse, os
 
 parser = argparse.ArgumentParser(description="Trim seq by tree.")
@@ -61,7 +61,8 @@ tree_fmts = ["newick", "nexus", "phyloxml", "nexml"]
 aligns = attempt_read(AlignIO.read, align_file, align_fmts)
 tree = attempt_read(Phylo.read, tree_file, tree_fmts)
 
-x = Trinity(seqs, aligns, tree)
+trinity = Trinity(seqs, aligns, tree)
+x = TraversePaths(trinity)
 if threshold is not None:
     x.set_similarity(threshold)
 if sites is not None:
