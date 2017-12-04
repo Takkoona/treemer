@@ -20,8 +20,6 @@ parser.add_argument('-t', '--threshold', type=float,
                     help="Set the similarity threshold")
 parser.add_argument('-s', '--sites', type=int, nargs='+',
                     help="The input sites are consistent within the cluster")
-parser.add_argument('-c', '--clustering', action='store_true',
-                    help="Output the clustering in a file")
 parser.add_argument('-l', '--level', type=int,
                     help="Set the reduction level")
 
@@ -30,9 +28,10 @@ args = parser.parse_args()
 seq_file = args.seqFile
 align_file = args.alignFile
 tree_file = args.treeFile
+clstr_file = '{}.clstr'.format(seq_file)
+tree_out_file = '{}.trimmed'.format(tree_file)
 threshold = args.threshold
 sites = args.sites
-clstr_file = args.clustering
 level = args.level
 
 try:
@@ -55,7 +54,7 @@ def attempt_read(read_fun, file_path, fmts):
     else:
         return data
 
-align_fmts = ["clustal", "phylip", "fasta", "emboss", "stockholm"]  
+align_fmts = ["clustal", "phylip", "fasta", "emboss"]  
 tree_fmts = ["newick", "nexus", "phyloxml", "nexml"]
 
 aligns = attempt_read(AlignIO.read, align_file, align_fmts)
@@ -69,25 +68,23 @@ if sites is not None:
     x.set_sites(*sites)
 x.set_level(level)
 clstr = x.trim_by_tree()
+tree = x.trinity.tree
 
-def cluster_out():
-    out = ''
+
+with open(clstr_file, 'w') as f:
     n_clstr = 1
     for cluster in clstr:
-        out += '>cluster {}\n'.format(n_clstr)
+        f.write('>cluster {}\n'.format(n_clstr))
         n_clstr += 1
         for trichord in cluster:
-            out += '\t{}\n'.format(trichord)
-        out += '\n'
-    return out
-
-if clstr_file is False:
-    print cluster_out()
-else:
-    out_file = seq_file + '.clstr'
-    with open(out_file, 'w') as f:
-        f.write(cluster_out())
-
+            f.write('\t{}\n'.format(trichord))
+            if not trichord.prsrv:
+                tip = trichord.tip
+                tree.collapse(tip)
+        f.write('\n')
+        
+Phylo.draw_ascii(tree)
+Phylo.write(tree, tree_out_file, 'newick')
 #y = x.aligned
 #    
 #for i in y:

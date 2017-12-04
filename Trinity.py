@@ -126,7 +126,7 @@ class TraversePaths(object):
             self.blast = NcbiblastnCommandline
             self.calc_fun = self.__similarity_by_blast
         else:
-            Exception("")
+            Exception("Method only accepts msa, blastp or blastn")
             
     def set_sites(self, *args):
         if args:
@@ -164,25 +164,30 @@ class TraversePaths(object):
             clade = trichord.clade
             final_clstr[clade].add(trichord)
         for cluster in final_clstr.values():
-            shortest = None
-            for trichord in cluster:
-                tip = trichord.t_path[-1]
-                dist = self.trinity.tree.distance(tip)
-                if shortest is None:
-                    shortest = dist
-                    prsrv_record = trichord
-                elif dist < shortest:
-                    shortest = dist
-                    prsrv_record = trichord
-            prsrv_record.set_prsrv()
+            cluster = self.__keep_the_shortest(cluster)
             yield cluster
+        
+    def __keep_the_shortest(self, cluster):
+        shortest = None
+        for trichord in cluster:
+            tip = trichord.t_path[-1]
+            dist = self.trinity.tree.distance(tip)
+            if shortest is None:
+                shortest = dist
+                prsrv_record = trichord
+            elif dist < shortest:
+                shortest = dist
+                prsrv_record = trichord
+        prsrv_record.set_prsrv()
+        return cluster
             
     def new_tree_out(self):
         tree = copy.deepcopy(self.trinity.tree)
         for cluster in self.trim_by_tree():
             for trichord in cluster:
-                tip = trichord.tip
-                tree.collapse(tip)
+                if not trichord.prsrv:
+                    tip = trichord.tip
+                    tree.collapse(tip)
         return tree
         
     def __clustering(self, trichords, clstr_prvs):
