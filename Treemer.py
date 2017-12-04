@@ -6,7 +6,8 @@ Created on Wed Nov 29 08:51:59 2017
 """
 
 from Bio import Phylo, SeqIO, AlignIO
-from Trinity import Trinity, TraversePaths
+#from Trinity import Trinity, TraversePaths
+from Binity import Binity, TraversePaths
 import argparse, os
 
 parser = argparse.ArgumentParser(description="Trim seq by tree.")
@@ -28,7 +29,7 @@ args = parser.parse_args()
 seq_file = args.seqFile
 align_file = args.alignFile
 tree_file = args.treeFile
-clstr_file = '{}.clstr'.format(seq_file)
+clstr_file = '{}.clstr'.format(tree_file)
 tree_out_file = '{}.trimmed'.format(tree_file)
 threshold = args.threshold
 sites = args.sites
@@ -60,15 +61,15 @@ tree_fmts = ["newick", "nexus", "phyloxml", "nexml"]
 aligns = attempt_read(AlignIO.read, align_file, align_fmts)
 tree = attempt_read(Phylo.read, tree_file, tree_fmts)
 
-trinity = Trinity(seqs, aligns, tree)
-x = TraversePaths(trinity)
+Binity = Binity(aligns, tree)
+x = TraversePaths(Binity)
 if threshold is not None:
     x.set_similarity(threshold)
 if sites is not None:
     x.set_sites(*sites)
 x.set_level(level)
 clstr = x.trim_by_tree()
-tree = x.trinity.tree
+tree = x.binity.tree
 
 
 with open(clstr_file, 'w') as f:
@@ -80,13 +81,8 @@ with open(clstr_file, 'w') as f:
             f.write('\t{}\n'.format(trichord))
             if not trichord.prsrv:
                 tip = trichord.tip
-                tree.collapse(tip)
+                tree.prune(tip)
         f.write('\n')
-        
+
 Phylo.draw_ascii(tree)
 Phylo.write(tree, tree_out_file, 'newick')
-#y = x.aligned
-#    
-#for i in y:
-#    if 'NL/118/2001' in i or 'BI/16190/1968' in i:
-#        print i, y[i]
