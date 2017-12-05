@@ -6,7 +6,6 @@ Created on Wed Nov 29 08:51:59 2017
 """
 
 from Bio import Phylo, SeqIO, AlignIO
-#from Trinity import Trinity, TraversePaths
 from Binity import Binity, TraversePaths
 import argparse, os
 
@@ -68,20 +67,14 @@ if threshold is not None:
 if sites is not None:
     x.set_sites(*sites)
 x.set_level(level)
-clstr = x.trim_by_tree()
-tree = x.binity.tree
-
 
 with open(clstr_file, 'w') as f:
     n_clstr = 1
-    for cluster in clstr:
+    for cluster in x.trim_by_tree():
         f.write('>cluster {}\n'.format(n_clstr))
         n_clstr += 1
         for trichord in cluster:
             f.write('\t{}\n'.format(trichord))
-            if not trichord.prsrv:
-                tip = trichord.tip
-                tree.prune(tip)
         f.write('\n')
 
 Phylo.draw_ascii(tree)

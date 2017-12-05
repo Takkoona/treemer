@@ -4,9 +4,11 @@ Created on Mon Dec  4 17:23:24 2017
 
 @author: Chengyang
 """
+from Bio.Alphabet import NucleotideAlphabet, ProteinAlphabet
+from Bio.Align import MultipleSeqAlignment
+from Bio.Phylo.BaseTree import Tree
 from collections import defaultdict
 import numpy as np
-import copy
 
 class Dichord(object):
     
@@ -46,6 +48,10 @@ class Dichord(object):
     @property
     def tip(self):
         return self.t_path[-1]
+        
+    @property
+    def s_record(self):
+        return self.a_record.ungap('-')
     
     @classmethod
     def from_list(cls, assembly):
@@ -58,6 +64,10 @@ class Binity(object):
     def __init__(self, aligns, tree):
         self.aligns = aligns
         self.tree = tree
+        assert isinstance(aligns, MultipleSeqAlignment), \
+        "The first input is not an instance of MultipleSeqAlignment"
+        assert isinstance(tree, Tree), \
+        "The second input is not an instance of Tree"
         assert len(self)
         
     def __len__(self):
@@ -66,6 +76,16 @@ class Binity(object):
         assert n_align == n_tips, \
         "Different record/tip number: {} in alignment and {} tree".format(n_align, n_tips)
         return n_align
+        
+    @property        
+    def seq_type(self):
+        alphabet = self.aligns._alphabet
+        if alphabet is None:
+            return None
+        elif isinstance(alphabet, NucleotideAlphabet):
+            return 'nucleotide'
+        elif isinstance(alphabet, ProteinAlphabet):
+            return 'protein'
         
     def get_dichords(self):
         n_seq = len(self)
@@ -140,59 +160,21 @@ class TraversePaths(object):
             clstr_prvs = old_clstr
             dichords, old_clstr = self.__clustering(dichords, clstr_prvs)
             if old_clstr.values() == clstr_prvs.values():
-                print "Level {} reduction is the same as level {}\n".format(stage, stage - 1)
+                print "\nLevel {} reduction is the same as level {}\n".format(stage, stage - 1)
                 break
+        else:
+            print "\nReduction by level done\n"
         final_clstr = defaultdict(set)
         for dichord in dichords:
             clade = dichord.clade
             final_clstr[clade].add(dichord)
+        print "Pruning clusters...\n"
         for cluster in final_clstr.values():
             cluster = self.select_prsrv(cluster)
-            yield cluster
-            
-    def new_tree_out(self):
-        tree = copy.deepcopy(self.binity.tree)
-        for cluster in self.trim_by_tree():
             for dichord in cluster:
                 if not dichord.prsrv:
-                    tip = dichord.tip
-                    tree.prune(tip)
-        return tree
-        
-    def __keep_the_nearest(self, cluster):
-        shortest = None
-        for dichord in cluster:
-            tip = dichord.t_path[-1]
-            dist = self.binity.tree.distance(tip)
-            if shortest is None:
-                shortest = dist
-                prsrv_record = dichord
-            elif dist < shortest:
-                shortest = dist
-                prsrv_record = dichord
-        prsrv_record.set_prsrv()
-        return cluster
-        
-    def __keep_the_median(self, cluster):
-        nearest = None
-        for dichord in cluster:
-            a_id = dichord.a_record.id
-            min_s = None
-            for pairing in self.aligned:
-                if pairing[0] is a_id:
-                    similarity = self.aligned[pairing]
-                    if min_s is None:
-                        min_s = similarity
-                    elif similarity < min_s:
-                        min_s = similarity
-            if nearest is None:
-                nearest = min_s
-                prsrv_record = dichord
-            elif min_s > nearest:
-                nearest = min_s
-                prsrv_record = dichord
-        prsrv_record.set_prsrv()
-        return cluster
+                    self.binity.tree.prune(dichord.tip)
+            yield cluster
         
     def __clustering(self, dichords, clstr_prvs):
         clstr_tmp = defaultdict(set)
@@ -238,3 +220,38 @@ class TraversePaths(object):
                     self.aligned[pairing] = p_match
                 similar.append(p_match > self.similarity)
         return similar
+        
+    def __keep_the_nearest(self, cluster):
+        shortest = None
+        for dichord in cluster:
+            tip = dichord.t_path[-1]
+            dist = self.binity.tree.distance(tip)
+            if shortest is None:
+                shortest = dist
+                prsrv_record = dichord
+            elif dist < shortest:
+                shortest = dist
+                prsrv_record = dichord
+        prsrv_record.set_prsrv()
+        return cluster
+        
+    def __keep_the_median(self, cluster):
+        nearest = None
+        for dichord in cluster:
+            a_id = dichord.a_record.id
+            min_s = None
+            for pairing in self.aligned:
+                if pairing[0] is a_id:
+                    similarity = self.aligned[pairing]
+                    if min_s is None:
+                        min_s = similarity
+                    elif similarity < min_s:
+                        min_s = similarity
+            if nearest is None:
+                nearest = min_s
+                prsrv_record = dichord
+            elif min_s > nearest:
+                nearest = min_s
+                prsrv_record = dichord
+        prsrv_record.set_prsrv()
+        return cluster
