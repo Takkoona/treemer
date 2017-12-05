@@ -10,49 +10,42 @@ from Binity import Binity, TraversePaths
 import argparse, os
 
 parser = argparse.ArgumentParser(description="Trim seq by tree.")
-parser.add_argument('seqFile', type=str,
-                    help="Sequence file in fasta format")
 parser.add_argument('alignFile', type=str,
                     help="Alignment file from the sequence file")
 parser.add_argument('treeFile', type=str,
                     help="Tree file from the alignment file")
-parser.add_argument('-t', '--threshold', type=float,
+parser.add_argument('-s', '--seqFile', type=str,
+                    help="Sequence file in fasta format")
+parser.add_argument('-e', '--threshold', type=float,
                     help="Set the similarity threshold")
-parser.add_argument('-s', '--sites', type=int, nargs='+',
-                    help="The input sites are consistent within the cluster")
+parser.add_argument('-c', '--sites', type=int, nargs='+',
+                    help="The input sites are consistent within the clusters")
 parser.add_argument('-l', '--level', type=int,
                     help="Set the reduction level")
 
 args = parser.parse_args()
 
-seq_file = args.seqFile
 align_file = args.alignFile
 tree_file = args.treeFile
 clstr_file = '{}.clstr'.format(tree_file)
 tree_out_file = '{}.trimmed'.format(tree_file)
+seq_file = args.seqFile
 threshold = args.threshold
 sites = args.sites
 level = args.level
-
-try:
-    seqs = SeqIO.index(seq_file, 'fasta')
-except IOError:
-    print "Make sure the sequence in fasta format"
 
 def attempt_read(read_fun, file_path, fmts):
     file_name = os.path.basename(file_path)
     for fmt in fmts:
         try:
             data = read_fun(file_path, fmt)
-            break
+            return data
         except Exception:
             print "{} is not in {} format".format(file_name, fmt)
     try:
         data
     except NameError:
         print "{} is not in any supported format".format(file_name)
-    else:
-        return data
 
 align_fmts = ["clustal", "phylip", "fasta", "emboss"]  
 tree_fmts = ["newick", "nexus", "phyloxml", "nexml"]
@@ -68,6 +61,12 @@ if sites is not None:
     x.set_sites(*sites)
 x.set_level(level)
 
+if seq_file is not None:
+    try:
+        seqs = SeqIO.index(seq_file, 'fasta')
+    except IOError:
+        print "Make sure the sequence in fasta format"
+
 with open(clstr_file, 'w') as f:
     n_clstr = 1
     for cluster in x.trim_by_tree():
@@ -77,5 +76,8 @@ with open(clstr_file, 'w') as f:
             f.write('\t{}\n'.format(trichord))
         f.write('\n')
 
-Phylo.draw_ascii(tree)
-Phylo.write(tree, tree_out_file, 'newick')
+try:
+    Phylo.draw_ascii(tree)
+    Phylo.write(tree, tree_out_file, 'newick')
+except ZeroDivisionError:
+    print "The similarity threshold {} is too low. Empty tree returned\n".format(threshold)

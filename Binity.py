@@ -48,10 +48,6 @@ class Dichord(object):
     @property
     def tip(self):
         return self.t_path[-1]
-        
-    @property
-    def s_record(self):
-        return self.a_record.ungap('-')
     
     @classmethod
     def from_list(cls, assembly):
@@ -117,7 +113,7 @@ class TraversePaths(object):
         self.similarity = 0.95
         self.sites = []
         self.level = None
-        self.select_prsrv = self.__keep_the_median
+        self.select_prsrv = self.__keep_the_similar
         
     def set_similarity(self, threshold):
         assert 0 <= threshold <= 1
@@ -131,7 +127,7 @@ class TraversePaths(object):
         else:
             self.sites = []
             
-    def set_selection(self, method = 'nearest'):
+    def set_selection(self, method = 'median'):
         if method is 'nearest':
             self.select_prsrv = self.__keep_the_nearest
         elif method is 'median':
@@ -224,7 +220,7 @@ class TraversePaths(object):
     def __keep_the_nearest(self, cluster):
         shortest = None
         for dichord in cluster:
-            tip = dichord.t_path[-1]
+            tip = dichord.tip
             dist = self.binity.tree.distance(tip)
             if shortest is None:
                 shortest = dist
@@ -235,7 +231,7 @@ class TraversePaths(object):
         prsrv_record.set_prsrv()
         return cluster
         
-    def __keep_the_median(self, cluster):
+    def __keep_the_similar(self, cluster):
         nearest = None
         for dichord in cluster:
             a_id = dichord.a_record.id
@@ -254,4 +250,10 @@ class TraversePaths(object):
                 nearest = min_s
                 prsrv_record = dichord
         prsrv_record.set_prsrv()
-        return cluster
+        return cluster        
+        
+
+#class TreeCluster(object):
+#    
+#    def __init__(self, cluster):
+#        self.cluster = cluster
