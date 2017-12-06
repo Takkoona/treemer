@@ -5,7 +5,7 @@ Created on Wed Nov 29 08:51:59 2017
 @author: Chengyang
 """
 
-from Bio import Phylo, SeqIO, AlignIO
+from Bio import Phylo, AlignIO
 from Binity import Binity, TraversePaths
 import argparse, os
 
@@ -14,8 +14,6 @@ parser.add_argument('alignFile', type=str,
                     help="Alignment file from the sequence file")
 parser.add_argument('treeFile', type=str,
                     help="Tree file from the alignment file")
-parser.add_argument('-s', '--seqFile', type=str,
-                    help="Sequence file in fasta format")
 parser.add_argument('-e', '--threshold', type=float,
                     help="Set the similarity threshold")
 parser.add_argument('-c', '--sites', type=int, nargs='+',
@@ -29,7 +27,6 @@ align_file = args.alignFile
 tree_file = args.treeFile
 clstr_file = '{}.clstr'.format(tree_file)
 tree_out_file = '{}.trimmed'.format(tree_file)
-seq_file = args.seqFile
 threshold = args.threshold
 sites = args.sites
 level = args.level
@@ -60,12 +57,6 @@ if threshold is not None:
 if sites is not None:
     x.set_sites(*sites)
 x.set_level(level)
-
-if seq_file is not None:
-    try:
-        seqs = SeqIO.index(seq_file, 'fasta')
-    except IOError:
-        print "Make sure the sequence in fasta format"
 
 with open(clstr_file, 'w') as f:
     n_clstr = 1

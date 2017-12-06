@@ -51,8 +51,7 @@ class Dichord(object):
     
     @classmethod
     def from_list(cls, assembly):
-        a_record, t_path = assembly
-        return cls(a_record, t_path)
+        return cls(*assembly)
 
      
 class Binity(object):
@@ -64,16 +63,18 @@ class Binity(object):
         "The first input is not an instance of MultipleSeqAlignment"
         assert isinstance(tree, Tree), \
         "The second input is not an instance of Tree"
-        assert len(self)
+        assert len(self) is not None
         
     def __len__(self):
         n_align = self.aligns.__len__()
         n_tips = self.tree.count_terminals()
-        assert n_align == n_tips, \
-        "Different record/tip number: {} in alignment and {} tree".format(n_align, n_tips)
-        return n_align
+        try:
+            assert n_align == n_tips
+            return n_align
+        except:
+            "Different record/tip number: {} in alignment and {} tree".format(n_align, n_tips)
         
-    @property        
+    @property
     def seq_type(self):
         alphabet = self.aligns._alphabet
         if alphabet is None:
@@ -85,22 +86,17 @@ class Binity(object):
         
     def get_dichords(self):
         n_seq = len(self)
-        tips = self.tree.get_terminals()
         for a_index in range(n_seq):
             a_record = self.aligns[a_index]
             a_id = a_record.id
-            assembly = [a_record, None]
-            for tip in tips:
-                t_id = tip.name
-                if a_id.startswith(t_id):
-                    t_path = self.tree.get_path(tip)
-                    assert t_path is not None, \
-                    "Alignment record {} not found in the tree".format(a_id)
-                    if isinstance(t_path, list):
-                        t_path = tuple([self.tree.root] + t_path)
-                    else:
-                        t_path = tuple([self.tree.root, t_path])
-                    assembly[1] = t_path
+            t_path = self.tree.get_path(a_id)
+            assert t_path is not None, \
+            "Alignment record {} not found in the tree".format(a_id)
+            if isinstance(t_path, list):
+                t_path = tuple([self.tree.root] + t_path)
+            else:
+                t_path = tuple([self.tree.root, t_path])
+            assembly = [a_record, t_path]
             dichord = Dichord.from_list(assembly)
             yield dichord
 
@@ -127,13 +123,13 @@ class TraversePaths(object):
         else:
             self.sites = []
             
-    def set_selection(self, method = 'median'):
+    def set_selection(self, method = 'similar'):
         if method is 'nearest':
             self.select_prsrv = self.__keep_the_nearest
-        elif method is 'median':
-            self.select_prsrv = self.__keep_the_median
+        elif method is 'similar':
+            self.select_prsrv = self.__keep_the_similar
         else:
-            raise Exception("Method only accepts shortest or median")
+            raise Exception("Method only accepts nearest or similar")
     
     def set_level(self, level = None):
         assert level is None or isinstance(level, int) and level > 0
@@ -164,6 +160,7 @@ class TraversePaths(object):
         for dichord in dichords:
             clade = dichord.clade
             final_clstr[clade].add(dichord)
+        del dichords
         print "Pruning clusters...\n"
         for cluster in final_clstr.values():
             cluster = self.select_prsrv(cluster)
@@ -250,10 +247,4 @@ class TraversePaths(object):
                 nearest = min_s
                 prsrv_record = dichord
         prsrv_record.set_prsrv()
-        return cluster        
-        
-
-#class TreeCluster(object):
-#    
-#    def __init__(self, cluster):
-#        self.cluster = cluster
+        return cluster
