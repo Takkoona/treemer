@@ -11,28 +11,28 @@ from collections import defaultdict
 import numpy as np
 
 class Dichord(object):
-    
+
     def __init__(self, a_record, t_path):
         self.a_record = a_record
         self.t_path = t_path
         self._path_pos = -1
         self.prsrv = False
-        
+
     def __str__(self):
         a_id = self.a_record.id
         if self.prsrv is False:
             return  a_id
         else:
             return '{}*'.format(a_id)
-    
+
     def proceed(self):
         pro_pos = self._path_pos - 1
         if len(self.t_path) >= abs(pro_pos):
             self._path_pos = pro_pos
-    
+
     def set_prsrv(self):
         self.prsrv = True
-    
+
     @property
     def next_clade(self):
         pro_pos = self._path_pos - 1
@@ -40,22 +40,22 @@ class Dichord(object):
             return self.t_path[pro_pos]
         else:
             return self.clade
-            
+
     @property
     def clade(self):
         return self.t_path[self._path_pos]
-        
+
     @property
     def tip(self):
         return self.t_path[-1]
-    
+
     @classmethod
     def from_list(cls, assembly):
         return cls(*assembly)
 
-     
+
 class Binity(object):
-    
+
     def __init__(self, aligns, tree):
         self.aligns = aligns
         self.tree = tree
@@ -64,7 +64,7 @@ class Binity(object):
         assert isinstance(tree, Tree), \
         "The second input is not an instance of Tree"
         assert len(self) is not None
-        
+
     def __len__(self):
         n_align = self.aligns.__len__()
         n_tips = self.tree.count_terminals()
@@ -73,7 +73,7 @@ class Binity(object):
             return n_align
         except:
             "Different record/tip number: {} in alignment and {} tree".format(n_align, n_tips)
-        
+
     @property
     def seq_type(self):
         alphabet = self.aligns._alphabet
@@ -83,7 +83,7 @@ class Binity(object):
             return 'nucleotide'
         elif isinstance(alphabet, ProteinAlphabet):
             return 'protein'
-        
+
     def get_dichords(self):
         n_seq = len(self)
         for a_index in range(n_seq):
@@ -102,7 +102,7 @@ class Binity(object):
 
 
 class TraversePaths(object):
-        
+
     def __init__(self, binity):
         self.binity = binity
         self.aligned = {}
@@ -110,11 +110,11 @@ class TraversePaths(object):
         self.sites = []
         self.level = None
         self.select_prsrv = self.__keep_the_similar
-        
+
     def set_similarity(self, threshold):
         assert 0 <= threshold <= 1
         self.similarity = threshold
-            
+
     def set_sites(self, *args):
         if args:
             for site in args:
@@ -122,7 +122,7 @@ class TraversePaths(object):
                 self.sites.append(site)
         else:
             self.sites = []
-            
+
     def set_selection(self, method = 'similar'):
         if method is 'nearest':
             self.select_prsrv = self.__keep_the_nearest
@@ -130,7 +130,7 @@ class TraversePaths(object):
             self.select_prsrv = self.__keep_the_similar
         else:
             raise Exception("Method only accepts nearest or similar")
-    
+
     def set_level(self, level = None):
         assert level is None or isinstance(level, int) and level > 0
         self.level = level
@@ -168,7 +168,7 @@ class TraversePaths(object):
                 if not dichord.prsrv:
                     self.binity.tree.prune(dichord.tip)
             yield cluster
-        
+
     def __clustering(self, dichords, clstr_prvs):
         clstr_tmp = defaultdict(set)
         for dichord in dichords:
@@ -183,7 +183,7 @@ class TraversePaths(object):
                     for dichord in cluster:
                         dichord.proceed()
         return dichords, clstr_tmp
-        
+
     def __site_conservation(self, cluster):
         consrv = []
         for site in self.sites:
@@ -191,7 +191,7 @@ class TraversePaths(object):
             concord = all(x == a_sites[0] for x in a_sites)
             consrv.append(concord)
         return consrv
-        
+
     def __similarity_by_msa(self, cluster):
         similar = []
         for dichord in cluster:
@@ -213,7 +213,7 @@ class TraversePaths(object):
                     self.aligned[pairing] = p_match
                 similar.append(p_match > self.similarity)
         return similar
-        
+
     def __keep_the_nearest(self, cluster):
         shortest = None
         for dichord in cluster:
@@ -227,7 +227,7 @@ class TraversePaths(object):
                 prsrv_record = dichord
         prsrv_record.set_prsrv()
         return cluster
-        
+
     def __keep_the_similar(self, cluster):
         nearest = None
         for dichord in cluster:

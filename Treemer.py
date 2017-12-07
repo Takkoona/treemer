@@ -44,7 +44,7 @@ def attempt_read(read_fun, file_path, fmts):
     except NameError:
         print "{} is not in any supported format".format(file_name)
 
-align_fmts = ["clustal", "phylip", "fasta", "emboss"]  
+align_fmts = ["clustal", "phylip", "fasta", "emboss"]
 tree_fmts = ["newick", "nexus", "phyloxml", "nexml"]
 
 aligns = attempt_read(AlignIO.read, align_file, align_fmts)
