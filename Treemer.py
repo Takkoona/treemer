@@ -4,7 +4,6 @@ Created on Wed Nov 29 08:51:59 2017
 
 @author: Chengyang
 """
-
 from Bio import Phylo, AlignIO
 from Binity import Binity, TraversePaths
 import argparse, os

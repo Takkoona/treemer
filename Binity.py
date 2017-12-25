@@ -95,7 +95,7 @@ class Binity(object):
             if isinstance(t_path, list):
                 t_path = tuple([self.tree.root] + t_path)
             else:
-                t_path = tuple([self.tree.root, t_path])
+                t_path = (self.tree.root, t_path)
             assembly = [a_record, t_path]
             dichord = Dichord.from_list(assembly)
             yield dichord
@@ -151,11 +151,12 @@ class TraversePaths(object):
             print "Doing level {} reduction".format(stage)
             clstr_prvs = old_clstr
             dichords, old_clstr = self.__clustering(dichords, clstr_prvs)
-            if old_clstr.values() == clstr_prvs.values():
+            if old_clstr.keys() == clstr_prvs.keys():
                 print "\nLevel {} reduction is the same as level {}\n".format(stage, stage - 1)
                 break
         else:
             print "\nReduction by level done\n"
+        del old_clstr
         final_clstr = defaultdict(set)
         for dichord in dichords:
             clade = dichord.clade
